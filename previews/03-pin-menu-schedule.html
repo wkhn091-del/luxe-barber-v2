@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Luxe Barber — PIN, menu, schedule</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#08080A;--plate:#131317;--well:#0D0D10;
+  --brass:#B98B3E;--brass-lit:#D6A855;--champagne:#E9DCC0;
+  --bone:#F2EFE9;--ash:#8A8A92;--smoke:#4A4A52;--signal:#E0533D;
+  --lux:cubic-bezier(.16,1,.3,1);
+  --display:"Bodoni Moda",Didot,Georgia,serif;--sans:Inter,system-ui,-apple-system,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-tap-highlight-color:transparent}
+body{background:#050506;color:var(--bone);font-family:var(--sans);font-variant-numeric:tabular-nums;
+  -webkit-font-smoothing:antialiased;line-height:1.6;overflow-x:hidden}
+button,input{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:1px solid var(--brass);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+#phone{max-width:430px;margin:0 auto;min-height:100dvh;background:var(--ink);position:relative;overflow:hidden}
+@media(min-width:520px){#phone{margin:24px auto;height:880px;min-height:0;border-radius:28px;
+  border:1px solid rgba(255,255,255,.08);box-shadow:0 40px 120px -40px #000}}
+#scroll{height:100%;overflow-y:auto;overscroll-behavior:contain;padding-bottom:110px}
+.pad{padding:0 20px}
+.display{font-family:var(--display);font-variation-settings:'opsz' 72}
+.d2{font-size:2.1rem;line-height:1.02;letter-spacing:-.02em}
+.d3{font-size:1.6rem;line-height:1.12;letter-spacing:-.015em}
+.note{font-size:.8125rem;line-height:1.25rem;color:var(--ash)}
+.micro{font-size:.6875rem;letter-spacing:.04em;color:var(--ash)}
+
+#seg{position:sticky;top:0;z-index:40;display:flex;gap:4px;padding:10px 20px;
+  background:rgba(8,8,10,.92);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.06)}
+#seg button{flex:1;border:1px solid rgba(255,255,255,.08);background:none;color:var(--smoke);
+  border-radius:999px;padding:7px;font-size:.6875rem;letter-spacing:.04em;cursor:pointer;transition:all .4s var(--lux)}
+#seg button[aria-pressed=true]{border-color:var(--brass);color:var(--brass);background:rgba(185,139,62,.1)}
+
+/* ---- PIN pad ---- */
+.dots{display:flex;justify-content:center;gap:12px;margin-top:24px}
+.dot{width:10px;height:10px;border-radius:999px;border:1px solid rgba(255,255,255,.2);transition:background-color .2s,border-color .2s}
+.dot.on{background:var(--brass);border-color:var(--brass)}
+.dot.bad{background:var(--signal);border-color:var(--signal)}
+@keyframes shake{0%,100%{transform:translate3d(0,0,0)}20%{transform:translate3d(-8px,0,0)}
+  40%{transform:translate3d(7px,0,0)}60%{transform:translate3d(-4px,0,0)}80%{transform:translate3d(2px,0,0)}}
+.shake{animation:shake .42s cubic-bezier(.36,.07,.19,.97) both}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(255,255,255,.06);
+  border-radius:2px;overflow:hidden;margin-top:8px}
+.key{height:64px;background:var(--ink);border:0;cursor:pointer;
+  font-family:var(--display);font-variation-settings:'opsz' 72;font-size:1.5rem;color:var(--bone);
+  transition:background-color .2s}
+.key:active{background:rgba(185,139,62,.15)}
+.key.util{font-family:var(--sans);font-size:.8125rem;color:var(--ash)}
+.key.blank{background:var(--ink);cursor:default}
+.msg{min-height:40px;text-align:center;padding:16px 8px 0;font-size:.8125rem}
+
+/* ---- generic ---- */
+.btn{width:100%;border:0;border-radius:999px;background:var(--brass);color:var(--ink);
+  padding:15px;font-weight:500;cursor:pointer;transition:background-color .4s var(--lux),transform .4s var(--lux)}
+.btn:active{transform:scale(.985)}
+.btn:disabled{opacity:.4}
+.btn.ghost{background:none;border:1px solid rgba(185,139,62,.5);color:var(--brass)}
+.fld{width:100%;border:1px solid rgba(255,255,255,.07);background:var(--well);border-radius:2px;padding:14px 16px;margin-top:8px}
+.fld::placeholder{color:var(--smoke)}
+.plate{border:1px solid rgba(255,255,255,.07);border-radius:2px;padding:16px}
+.chip{border:1px solid rgba(255,255,255,.07);border-radius:999px;background:none;color:var(--ash);
+  padding:8px 16px;font-size:.8125rem;cursor:pointer;transition:all .4s var(--lux)}
+.chip[aria-pressed=true]{border-color:var(--brass);background:rgba(185,139,62,.1);color:var(--bone)}
+.step{width:48px;height:48px;flex-shrink:0;border:1px solid rgba(255,255,255,.07);border-radius:2px;
+  background:none;color:var(--ash);font-size:1.1rem;cursor:pointer;transition:all .4s var(--lux)}
+.step:hover{border-color:rgba(255,255,255,.2);color:var(--bone)}
+.svc{display:flex;gap:12px;align-items:flex-start;border-top:1px solid rgba(255,255,255,.07);padding:16px 0}
+.arrow{width:28px;height:24px;background:none;border:0;color:var(--smoke);cursor:pointer;display:grid;place-items:center}
+.arrow:disabled{opacity:.3}
+.toggle{position:relative;width:44px;height:24px;border-radius:999px;border:0;cursor:pointer;flex-shrink:0;
+  background:rgba(255,255,255,.1);transition:background-color .4s var(--lux)}
+.toggle[aria-pressed=true]{background:var(--brass)}
+.toggle i{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:999px;background:var(--ink);
+  transition:transform .4s var(--lux)}
+.toggle[aria-pressed=true] i{transform:translateX(20px)}
+
+/* ---- sheet ---- */
+#veil{position:absolute;inset:0;z-index:60;background:rgba(8,8,10,.8);backdrop-filter:blur(4px);display:none}
+#veil.on{display:block}
+#sheet{position:absolute;left:0;right:0;bottom:0;z-index:61;background:var(--plate);
+  border-top:1px solid rgba(255,255,255,.08);border-radius:14px 14px 0 0;display:none;touch-action:pan-y}
+#sheet.on{display:block;animation:up .42s var(--lux) both}
+@keyframes up{from{transform:translate3d(0,100%,0)}to{transform:none}}
+#sheet .grab{display:flex;justify-content:center;padding:12px 0 4px}
+#sheet .grab i{width:40px;height:4px;border-radius:999px;background:rgba(255,255,255,.15)}
+#sheet h2{font-size:1rem;font-weight:400;padding:8px 20px 16px;border-bottom:1px solid rgba(255,255,255,.07)}
+#sheet .inner{padding:20px;overflow-y:auto;max-height:64vh;overscroll-behavior:contain}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div id="phone">
+  <div id="seg">
+    <button data-s="lock" aria-pressed="true">PIN</button>
+    <button data-s="menu" aria-pressed="false">Menu</button>
+    <button data-s="sched" aria-pressed="false">Schedule</button>
+  </div>
+  <div id="scroll"><div id="view"></div></div>
+  <div id="veil"></div>
+  <div id="sheet"><div class="grab"><i></i></div><h2 id="st"></h2><div class="inner" id="sb"></div></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money=c=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'EUR',
+  minimumFractionDigits:c%100===0?0:2}).format(c/100);
+const hhmm=d=>new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false}).format(d);
+const durLabel=m=>m<60?`${m} min`:(m%60?`${Math.floor(m/60)}h ${m%60}m`:`${Math.floor(m/60)}h`);
+
+/* The real PIN for this demo. In production only a bcrypt hash is stored,
+   and unlock also requires a 256-bit device secret this browser was given
+   at enrolment. */
+const DEMO_PIN='492137';
+
+const S={
+  screen:'lock',
+  pin:'', busy:false, err:null, attempts:0, lockedUntil:0, unlocked:false,
+  services:[
+    {id:'s1',name:'Signature cut',desc:'Consultation, cut, hot towel, styling',min:45,cents:4500,active:true,booked:128},
+    {id:'s2',name:'Cut and beard',desc:'Full service with straight-razor beard work',min:60,cents:6500,active:true,booked:74},
+    {id:'s3',name:'Beard sculpt',desc:'Line-up, shape, hot towel finish',min:30,cents:3000,active:true,booked:41},
+    {id:'s4',name:'Express fade',desc:'Clipper work only, no wash',min:20,cents:2500,active:false,booked:0},
+  ],
+  editing:null,
+  /* Tue–Sat, 09:00–13:00 and 14:00–19:00 — the seeded week. */
+  rules:[2,3,4,5,6].flatMap(w=>[{w,a:9*60,b:13*60},{w,a:14*60,b:19*60}]),
+  buffer:5, grain:15,
+  range:{startOff:0, len:60, base:null, mode:'block'},
+};
+
+/* Same maths as the server's estimateFitsPerWeek: counted per contiguous
+   opening, because a 45-minute cut can't run across a lunch break. */
+function capacity(min){
+  const block=min+S.buffer;
+  const perWeek=S.rules.reduce((n,r)=>n+Math.floor((r.b-r.a)/block),0);
+  const off=block%S.grain;
+  return {perWeek, waste: off===0?0:S.grain-off};
+}
+
+/* ============================== PIN ============================== */
+function lockScreen(){
+  const waiting=Math.max(0,Math.ceil((S.lockedUntil-Date.now())/1000));
+  const keys=['1','2','3','4','5','6','7','8','9',null,'0','del'];
+  if(S.unlocked) return `
+    <div style="min-height:70vh;display:grid;place-items:center;padding:0 24px">
+      <div style="text-align:center">
+        <svg width="40" height="40" viewBox="0 0 44 44" fill="none" style="margin:0 auto">
+          <circle cx="22" cy="22" r="21" stroke="#B98B3E" stroke-width="1"/>
+          <path d="M13 22.5 19.5 29 31 15.5" stroke="#B98B3E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h1 class="display d2" style="margin-top:28px">Unlocked</h1>
+        <p class="note" style="margin-top:12px;max-width:20rem">
+          The session lasts twelve hours. Tomorrow morning it's six digits again — never the email form.</p>
+        <button class="btn ghost" data-reset style="margin-top:32px">Lock it again</button>
+      </div>
+    </div>`;
+
+  return `
+  <div style="min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px">
+    <h1 class="display d3">Luxe</h1>
+    <div style="width:100%;max-width:19rem;margin-top:36px">
+      <p class="note" style="text-align:center">${waiting?'Locked':'Enter your PIN'}</p>
+      <div class="dots ${S.err?'shake':''}">
+        ${Array.from({length:6},(_,i)=>`<span class="dot ${i<S.pin.length?(S.err?'bad':'on'):''}"></span>`).join('')}
+      </div>
+      <div class="msg">${S.err
+        ? `<span style="color:var(--signal)">${esc(S.err)}</span>`
+        : `<span style="color:var(--smoke)">${waiting?`Try again in ${waiting}s`:'Try 492137 — or get it wrong to see the lockout'}</span>`}</div>
+      <div class="keys">
+        ${keys.map(k=>k===null?'<span class="key blank"></span>'
+          :k==='del'?`<button class="key util" data-k="del" ${waiting?'disabled':''}>Delete</button>`
+          :`<button class="key" data-k="${k}" ${waiting?'disabled':''}>${k}</button>`).join('')}
+      </div>
+      <p class="note" style="text-align:center;margin-top:28px;color:var(--smoke)">
+        Attempt ${S.attempts} of 10 · then the device is revoked</p>
+    </div>
+  </div>`;
+}
+
+function press(k){
+  if(S.lockedUntil>Date.now())return;
+  if(k==='del'){S.pin=S.pin.slice(0,-1);navigator.vibrate?.(8);return render()}
+  if(S.pin.length>=6)return;
+  S.pin+=k; S.err=null; navigator.vibrate?.(8);
+  // Submits itself on the sixth digit — knowing the PIN is the confirmation.
+  if(S.pin.length===6) return setTimeout(submitPin,80);
+  render();
+}
+
+function submitPin(){
+  if(S.pin===DEMO_PIN){ S.unlocked=true; S.attempts=0; navigator.vibrate?.([8,40,12]); return render() }
+  S.attempts++;
+  // The ladder from auth.service.js: the first three are free, then it climbs.
+  const ladder=[0,0,0,30,120,600,1800,3600,3600,3600];
+  const wait=ladder[Math.min(S.attempts,ladder.length-1)];
+  S.lockedUntil=wait?Date.now()+wait*1000:0;
+  const left=10-S.attempts;
+  S.err=wait?`Incorrect PIN. Try again in ${wait<60?wait+' seconds':Math.ceil(wait/60)+' minutes'}. ${left} attempts left.`
+            :`Incorrect PIN. ${left} attempts left.`;
+  navigator.vibrate?.([14,70,14]);
+  render();
+  setTimeout(()=>{S.pin='';S.err=null;render()},1400);
+}
+
+/* ============================= MENU ============================= */
+function menuScreen(){
+  return `
+  <div class="pad" style="padding-top:24px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <h1 class="display d3">Services</h1>
+      <button class="chip" style="border-color:rgba(185,139,62,.5);color:var(--brass)" data-new>Add</button>
+    </div>
+    <p class="note" style="margin-top:8px">The booking page reads this live. Change a duration and tomorrow's times move with it.</p>
+    <div style="margin-top:24px">
+      ${S.services.map((s,i)=>`
+        <div class="svc" style="${s.active?'':'opacity:.5'}">
+          <div style="display:flex;flex-direction:column;flex-shrink:0">
+            <button class="arrow" data-mv="${i}" data-dir="-1" ${i===0?'disabled':''} aria-label="Move ${esc(s.name)} up">
+              <svg width="11" height="7" viewBox="0 0 12 8" fill="none"><path d="M1 7l5-5 5 5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button class="arrow" data-mv="${i}" data-dir="1" ${i===S.services.length-1?'disabled':''} aria-label="Move ${esc(s.name)} down">
+              <svg width="11" height="7" viewBox="0 0 12 8" fill="none"><path d="M1 1l5 5 5-5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+          <button style="flex:1;display:flex;justify-content:space-between;gap:16px;text-align:left;background:none;border:0;cursor:pointer;padding:0"
+            data-edit="${s.id}">
+            <span style="min-width:0">
+              <span style="display:block">${esc(s.name)}${s.active?'':'<span class="micro" style="color:var(--smoke);margin-left:8px">off the menu</span>'}</span>
+              <span class="note" style="display:block;margin-top:4px">${s.min} min${s.booked?` · booked ${s.booked}×`:''}</span>
+            </span>
+            <span style="flex-shrink:0;color:var(--brass)">${money(s.cents)}</span>
+          </button>
+        </div>`).join('')}
+      <div style="border-top:1px solid rgba(255,255,255,.07)"></div>
+    </div>
+  </div>`;
+}
+
+function editorSheet(id){
+  const s=id?S.services.find(x=>x.id===id):null;
+  S.editing={id,name:s?.name??'',desc:s?.desc??'',min:s?.min??45,
+    price:s?String(Math.round(s.cents/100)):'45',active:s?.active??true};
+  openSheet(s?s.name:'New service',editorBody());
+}
+
+function editorBody(){
+  const e=S.editing, cap=capacity(e.min);
+  return `
+  <label style="display:block"><span class="note">Name</span>
+    <input class="fld" id="e-name" value="${esc(e.name)}" placeholder="Men's haircut" maxlength="60"></label>
+
+  <label style="display:block;margin-top:24px"><span class="note">Description</span>
+    <input class="fld" id="e-desc" value="${esc(e.desc)}" placeholder="Consultation, cut, hot towel, styling" maxlength="200">
+    <span class="micro" style="display:block;color:var(--smoke);margin-top:8px">Shown under the name on the booking page.</span></label>
+
+  <label style="display:block;margin-top:24px"><span class="note">Price</span>
+    <span style="position:relative;display:block">
+      <span style="position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--ash);pointer-events:none">€</span>
+      <input class="fld" id="e-price" inputmode="decimal" value="${esc(e.price)}" style="padding-left:34px">
+    </span>
+    <span class="micro" style="display:block;color:var(--smoke);margin-top:8px">Cash on site. Nothing is charged online.</span></label>
+
+  <div style="margin-top:24px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <span class="note">Duration</span><span>${e.min} minutes</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+      ${[15,20,30,45,60,75,90].map(d=>`<button class="chip" data-dur="${d}" aria-pressed="${e.min===d}">${d}</button>`).join('')}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="step" style="flex:1;width:auto" data-durstep="-5" aria-label="Five minutes less">−5</button>
+      <button class="step" style="flex:1;width:auto" data-durstep="5" aria-label="Five minutes more">+5</button>
+    </div>
+
+    <!-- The number that makes this screen worth building. -->
+    <div class="plate" style="margin-top:16px">
+      <p><span class="display" style="font-size:1.5rem;color:var(--brass)">${cap.perWeek}</span>
+        <span class="note"> fit in your week, at your current hours</span></p>
+      ${cap.waste?`<p class="note" style="margin-top:12px">This one doesn't line up with your ${S.grain}-minute slots — it leaves ${cap.waste} minutes after every cut that nothing can be booked into.</p>`:''}
+    </div>
+  </div>
+
+  ${e.id?`<button class="plate" data-toggleactive style="display:flex;width:100%;justify-content:space-between;align-items:center;
+    gap:16px;margin-top:24px;background:none;text-align:left;cursor:pointer">
+    <span><span style="display:block">On the booking page</span>
+      <span class="note" style="display:block;margin-top:4px">${e.active?'Clients can book this now.':'Hidden from clients.'}</span></span>
+    <span class="toggle" aria-pressed="${e.active}"><i></i></span></button>`:''}
+
+  <button class="btn" data-save style="margin-top:24px">${e.id?'Save changes':'Add to the menu'}</button>
+  ${e.id?`<button data-del style="width:100%;background:none;border:0;color:var(--ash);padding:12px;margin-top:8px;cursor:pointer;font-size:.8125rem">Remove this service</button>`:''}`;
+}
+
+/* =========================== SCHEDULE =========================== */
+function schedScreen(){
+  const gap={s:new Date(new Date().setHours(14,0,0,0)),e:new Date(new Date().setHours(17,10,0,0))};
+  S.range.base=gap;
+  return `
+  <div class="pad" style="padding-top:24px">
+    <h1 class="display d3">Schedule control</h1>
+    <p class="note" style="margin-top:8px">Gaps are rows, so the empty time is the thing you tap.</p>
+    <div style="margin-top:24px">
+      <button class="svc" style="width:100%;background:none;cursor:pointer;text-align:left;border-top:1px solid rgba(255,255,255,.07)" data-gap>
+        <span class="note" style="width:46px;flex-shrink:0;text-align:right;color:var(--smoke)">14:00</span>
+        <span style="width:2px;flex-shrink:0;border-radius:2px;align-self:stretch;
+          background-image:repeating-linear-gradient(to bottom,rgba(255,255,255,.14) 0 4px,transparent 4px 10px)"></span>
+        <span style="flex:1;display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <span class="note">Open · 3h 10m</span>
+          <span class="chip" style="border-color:rgba(185,139,62,.4);color:var(--brass);padding:4px 12px;font-size:.6875rem">Fill it</span>
+        </span>
+      </button>
+      <div style="border-top:1px solid rgba(255,255,255,.07)"></div>
+    </div>
+    <p class="note" style="margin-top:24px;color:var(--smoke)">
+      Tap it, then "Block part of it" — the range picker steps in ${S.grain}-minute jumps, so it can only ever produce a time the booking engine can use.</p>
+  </div>`;
+}
+
+function rangeSheet(mode){
+  S.range.mode=mode; S.range.startOff=0; S.range.len=60;
+  openSheet(mode==='open'?'Open some time':'Block some time',rangeBody());
+}
+
+function rangeBody(){
+  const r=S.range, base=r.base;
+  const ceiling=Math.round((base.e-base.s)/60000);
+  const start=new Date(base.s.getTime()+r.startOff*60000);
+  const maxLen=Math.max(S.grain,ceiling-r.startOff);
+  const len=Math.min(r.len,maxLen);
+  const end=new Date(start.getTime()+len*60000);
+  return `
+  <div class="plate" style="text-align:center;padding:20px 16px">
+    <p class="display d3">${hhmm(start)} – ${hhmm(end)}</p>
+    <p class="note" style="margin-top:8px">${durLabel(len)}</p>
+  </div>
+  <div style="margin-top:28px">
+    <span class="note">Starts at</span>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+      <button class="step" data-r="s-" aria-label="Start earlier">−</button>
+      <span style="flex:1;text-align:center">${hhmm(start)}</span>
+      <button class="step" data-r="s+" aria-label="Start later">+</button>
+    </div>
+  </div>
+  <div style="margin-top:28px">
+    <span class="note">For</span>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+      <button class="step" data-r="l-" aria-label="Shorter">−</button>
+      <span style="flex:1;text-align:center">${durLabel(len)}</span>
+      <button class="step" data-r="l+" aria-label="Longer">+</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:24px">
+    ${[30,60,90,120].filter(m=>m<=maxLen).map(m=>`<button class="chip" data-len="${m}" aria-pressed="${len===m}">${durLabel(m)}</button>`).join('')}
+  </div>
+  <p class="note" style="margin-top:24px">${r.mode==='open'
+    ? 'Anyone in the queue who matches gets messaged straight away.'
+    : 'It comes off the booking page immediately. Anything already booked stays put.'}</p>
+  <button class="btn" data-apply style="margin-top:24px">
+    ${r.mode==='open'?'Open':'Block'} ${hhmm(start)} – ${hhmm(end)}</button>`;
+}
+
+/* ============================ SHELL ============================ */
+function openSheet(title,body){ $('#st').textContent=title||''; $('#st').style.display=title?'block':'none';
+  $('#sb').innerHTML=body; $('#veil').classList.add('on'); $('#sheet').classList.add('on'); }
+function closeSheet(){ $('#veil').classList.remove('on'); $('#sheet').classList.remove('on'); }
+$('#veil').onclick=closeSheet;
+
+function render(){
+  $('#view').innerHTML = S.screen==='lock'?lockScreen():S.screen==='menu'?menuScreen():schedScreen();
+}
+
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-s],[data-k],[data-reset],[data-new],[data-edit],[data-mv],[data-dur],[data-durstep],[data-toggleactive],[data-save],[data-del],[data-gap],[data-act],[data-r],[data-len],[data-apply],[data-close]');
+  if(!t)return;
+
+  if(t.dataset.s){ S.screen=t.dataset.s; closeSheet();
+    document.querySelectorAll('#seg button').forEach(b=>b.ariaPressed=String(b.dataset.s===S.screen));
+    return render() }
+  if(t.dataset.k) return press(t.dataset.k);
+  if(t.hasAttribute('data-reset')){ S.unlocked=false;S.pin='';S.err=null;S.attempts=0;S.lockedUntil=0; return render() }
+
+  /* menu */
+  if(t.hasAttribute('data-new')) return editorSheet(null);
+  if(t.dataset.edit) return editorSheet(t.dataset.edit);
+  if(t.dataset.mv!==undefined){
+    const i=+t.dataset.mv,j=i+ +t.dataset.dir;
+    if(j<0||j>=S.services.length)return;
+    [S.services[i],S.services[j]]=[S.services[j],S.services[i]];
+    navigator.vibrate?.(8); return render() }
+  if(t.dataset.dur){ S.editing.min=+t.dataset.dur; return $('#sb').innerHTML=editorBody() }
+  if(t.dataset.durstep){ S.editing.min=Math.max(5,Math.min(480,S.editing.min + +t.dataset.durstep));
+    return $('#sb').innerHTML=editorBody() }
+  if(t.hasAttribute('data-toggleactive')){ S.editing.active=!S.editing.active; return $('#sb').innerHTML=editorBody() }
+  if(t.hasAttribute('data-save')){
+    const e=S.editing;
+    e.name=$('#e-name').value.trim()||'Untitled';
+    e.desc=$('#e-desc').value.trim();
+    const cents=Math.round(Number($('#e-price').value||0)*100);
+    if(e.id){ Object.assign(S.services.find(x=>x.id===e.id),{name:e.name,desc:e.desc,min:e.min,cents,active:e.active}) }
+    else S.services.push({id:'s'+Date.now(),name:e.name,desc:e.desc,min:e.min,cents,active:true,booked:0});
+    closeSheet(); return render() }
+  if(t.hasAttribute('data-del')){
+    const s=S.services.find(x=>x.id===S.editing.id);
+    // A service with history is retired, not deleted — the barber needs last
+    // year's takings to still add up.
+    if(s.booked>0){ s.active=false;
+      openSheet(null,`<div style="text-align:center;padding:8px 0 24px">
+        <h2 class="display d3">Taken off the menu</h2>
+        <p class="note" style="margin-top:16px">${esc(s.name)} has ${s.booked} bookings in the book, so it's kept for your records rather than deleted. Nobody can book it now.</p>
+        <button class="btn ghost" data-close style="margin-top:32px">Done</button></div>`); }
+    else { S.services=S.services.filter(x=>x.id!==s.id); closeSheet() }
+    return render() }
+  if(t.hasAttribute('data-close')){ closeSheet(); return render() }
+
+  /* schedule */
+  if(t.hasAttribute('data-gap')){
+    openSheet('Open · 3h 10m',`
+      <p>14:00 – 17:10</p>
+      <p class="note" style="margin:8px 0 20px">Nobody's booked in. Three ways to use it.</p>
+      <button class="plate" data-act="flash" style="display:block;width:100%;text-align:left;background:none;margin-bottom:12px;cursor:pointer">
+        <b style="font-weight:400;display:block">Flash it to past clients</b>
+        <span class="note" style="display:block;margin-top:4px">A text to everyone who's opted in. First to book takes it.</span></button>
+      <button class="plate" data-act="blockall" style="display:block;width:100%;text-align:left;background:none;margin-bottom:12px;cursor:pointer">
+        <b style="font-weight:400;display:block">Block off all of it</b>
+        <span class="note" style="display:block;margin-top:4px">Takes the whole 3h 10m out of the calendar.</span></button>
+      <button class="plate" data-act="blockpart" style="display:block;width:100%;text-align:left;background:none;cursor:pointer">
+        <b style="font-weight:400;display:block">Block part of it</b>
+        <span class="note" style="display:block;margin-top:4px">Pick a start and a length — for a break, or an errand.</span></button>`);
+    return }
+  if(t.dataset.act==='blockpart') return rangeSheet('block');
+  if(t.dataset.act==='blockall'||t.dataset.act==='flash'){ closeSheet(); return }
+  if(t.dataset.r){
+    const ceiling=Math.round((S.range.base.e-S.range.base.s)/60000);
+    if(t.dataset.r==='s-')S.range.startOff=Math.max(0,S.range.startOff-S.grain);
+    if(t.dataset.r==='s+')S.range.startOff=Math.min(ceiling-S.grain,S.range.startOff+S.grain);
+    if(t.dataset.r==='l-')S.range.len=Math.max(S.grain,S.range.len-S.grain);
+    if(t.dataset.r==='l+')S.range.len=Math.min(ceiling-S.range.startOff,S.range.len+S.grain);
+    return $('#sb').innerHTML=rangeBody() }
+  if(t.dataset.len){ S.range.len=+t.dataset.len; return $('#sb').innerHTML=rangeBody() }
+  if(t.hasAttribute('data-apply')){
+    const start=new Date(S.range.base.s.getTime()+S.range.startOff*60000);
+    const end=new Date(start.getTime()+S.range.len*60000);
+    openSheet(null,`<div style="text-align:center;padding:8px 0 24px">
+      <h2 class="display d3">Blocked off</h2>
+      <p class="note" style="margin-top:16px">${hhmm(start)} – ${hhmm(end)}. Nobody can book it.</p>
+      <button class="btn ghost" data-close style="margin-top:32px">Back to today</button></div>`);
+    return }
+});
+
+/* Hardware keyboards exist — the laptop in the back room counts. */
+addEventListener('keydown',e=>{
+  if(S.screen!=='lock'||S.unlocked)return;
+  if(/^\d$/.test(e.key))press(e.key);
+  else if(e.key==='Backspace')press('del');
+});
+
+/* Drag to dismiss. */
+(function(){
+  const sh=$('#sheet');let a=false,y0=0,off=0,raf=0;
+  const paint=()=>{raf=0;sh.style.transform=`translate3d(0,${off}px,0)`};
+  sh.addEventListener('pointerdown',e=>{if($('#sb').scrollTop>0)return;a=true;y0=e.clientY;off=0;sh.style.transition='none';sh.setPointerCapture(e.pointerId)});
+  sh.addEventListener('pointermove',e=>{if(!a)return;off=Math.max(0,e.clientY-y0);if(!raf)raf=requestAnimationFrame(paint)});
+  const end=e=>{if(!a)return;a=false;sh.releasePointerCapture?.(e.pointerId);
+    sh.style.transition='transform .42s var(--lux)';sh.style.transform='translate3d(0,0,0)';if(off>96)closeSheet();off=0};
+  sh.addEventListener('pointerup',end);sh.addEventListener('pointercancel',end);
+})();
+
+setInterval(()=>{ if(S.screen==='lock'&&S.lockedUntil>Date.now())render() },1000);
+render();
+</script>
+</body>
+</html>

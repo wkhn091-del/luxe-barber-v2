@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.local
+dist/
+.vercel/
+*.log
+
+# MAIL_TRANSPORT=preview output
+.mail-preview/

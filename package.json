@@ -1,0 +1,12 @@
+{
+  "name": "luxe-barber",
+  "private": true,
+  "version": "2.0.0",
+  "description": "Single-chair barbershop platform: 3D Hebrew RTL frontend, Express/Prisma backend, automated VIP waitlist.",
+  "scripts": {
+    "setup": "npm --prefix server install && npm --prefix client install && npm --prefix server run db:setup",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix client run build"
+  }
+}

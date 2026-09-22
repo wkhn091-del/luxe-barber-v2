@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "builds": [{ "src": "api/index.js", "use": "@vercel/node" }],
+  "routes": [{ "src": "/(.*)", "dest": "api/index.js" }],
+  "crons": [
+    {
+      "comment": "Serverless replacement for the in-process sweeper. Set ENABLE_SCHEDULER=false. 1 minute is Vercel's finest granularity, so worst-case cascade delay is ~60s.",
+      "path": "/api/internal/sweep",
+      "schedule": "* * * * *"
+    }
+  ]
+}

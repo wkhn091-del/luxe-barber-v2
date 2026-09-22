@@ -1,0 +1,56 @@
+# Render blueprint — the FREE plan. Every variable is documented in
+# server/.env.example. The database is Supabase: paste both connection strings
+# when the blueprint asks (sync: false). Secrets marked generateValue are
+# created once by Render and never leave it.
+#
+# Two free-plan facts shape this file:
+#   - Outbound SMTP is blocked, so email goes out through Brevo's HTTP API
+#     (MAIL_TRANSPORT=brevo), which travels over HTTPS.
+#   - The service sleeps when idle, and a sleeping server sends no reminders.
+#     A free external cron (cron-job.org) calling GET /api/internal/sweep every
+#     10 minutes with "Authorization: Bearer <CRON_SECRET>" wakes it and runs
+#     the email queue.
+services:
+  - type: web
+    name: luxe-barber-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm ci && npx prisma generate && npx prisma migrate deploy
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ENABLE_SCHEDULER
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: NOTIFY_PROVIDER
+        value: none
+      - key: MAIL_TRANSPORT
+        value: brevo
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      - key: MAIL_FROM_NAME
+        sync: false
+      - key: MAIL_REPLY_TO
+        sync: false
+      # Brevo's free plan sends 300 emails a day. A flash broadcast to 150
+      # people would spend half of it; 60 leaves room for the day's bookings.
+      - key: FLASH_MAX_RECIPIENTS
+        value: "60"
+      - key: DEFAULT_COUNTRY_CODE
+        value: IL

@@ -1,0 +1,508 @@
+// ---------------------------------------------------------------------------
+// Luxe Barber — data model
+//
+// PostgreSQL, not MongoDB, for one decisive reason: the GiST exclusion
+// constraint in migrations/0_init/migration.sql makes overlapping appointments
+// impossible at the storage layer. See docs/ARCHITECTURE.md §3.
+//
+// TIMESTAMP TYPES — DO NOT CHANGE WITHOUT READING THIS
+//
+// Every DateTime here deliberately uses Prisma's PostgreSQL default,
+// `timestamp(3)` WITHOUT time zone. No column carries `@db.Timestamptz`, and
+// adding one will break the database on the next migration.
+//
+// Why: the overlap constraint indexes `tsrange("startAt", "endAt")`. Postgres
+// only allows IMMUTABLE expressions in an index, and `tsrange` over `timestamp`
+// columns is immutable. Point `tstzrange` at these same columns and Postgres
+// inserts an implicit `timestamp -> timestamptz` cast, which is merely STABLE
+// because it depends on the session TimeZone — and the migration dies with
+// "functions in index expression must be marked IMMUTABLE".
+//
+// This is safe because the application layer only ever writes UTC instants:
+// JavaScript Date objects serialise as UTC, every read converts back to UTC,
+// and all wall-clock arithmetic happens in src/lib/time.js against the
+// barber's IANA zone. The database stores one consistent reference frame, so
+// range overlap is exactly correct.
+//
+// If you ever switch these columns to `@db.Timestamptz(3)`, you must switch the
+// constraint to `tstzrange` in the same migration. They are one decision.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+
+  // The pooled connection (Supabase pgBouncer, port 6543). Used at runtime.
+  url = env("DATABASE_URL")
+
+  // The DIRECT connection (port 5432), used ONLY by `prisma migrate`.
+  //
+  // Without this, migrations hang forever against Supabase. pgBouncer runs in
+  // transaction pooling mode, which does not support the session-level
+  // advisory lock Prisma takes to serialise migrations — so Prisma waits on a
+  // lock that can never be granted and never times out. Migrations need a real
+  // session; the app does not.
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================ SHOP CONFIGURATION ============================
+
+model Barber {
+  id       String @id @default(cuid())
+  name     String
+  slug     String @unique
+  // IANA name. All wall-clock maths is done relative to this, so DST never
+  // silently shifts opening hours.
+  timezone String @default("Asia/Jerusalem")
+
+  // --- Booking policy knobs (per shop, editable from the admin dashboard) ---
+  slotGranularityMin Int @default(15) // slots start on :00 :15 :30 :45
+  bufferMin          Int @default(5)  // clean-up time appended to every appointment
+  minLeadTimeMin     Int @default(60) // no bookings inside the next hour
+  maxAdvanceDays     Int @default(60) // how far ahead the calendar opens
+
+  // --- Smart VIP Waitlist policy ---
+  offerTtlMin        Int @default(15) // the 15-minute confirmation window
+  offerMinTtlMin     Int @default(2)  // below this, skip the candidate entirely
+  offerLeadBufferMin Int @default(10) // an offer must expire >=10min before the slot starts
+  maxMissedOffers    Int @default(3)  // misses before a waitlist entry is retired
+
+  email        String?
+  phone        String?
+  addressLine  String?
+  instagramUrl String?
+  /// A Waze share link (https://waze.com/ul/…). Empty → the site builds one
+  /// from addressLine.
+  wazeUrl      String?
+  /// LEGACY, no longer read or written: the site now shows hours generated
+  /// from WorkingHoursRule (src/lib/hoursSummary.js). Kept so a deploy never
+  /// has old and new code disagreeing about a dropped column.
+  openingHours String?
+  /// Vacation / shop closed: no public bookings, no waitlist, no offers while
+  /// true. The barber can still book by hand. Message shown on the site.
+  vacationMode    Boolean @default(false)
+  /// The barber's private calendar feed (/api/calendar/<token>.ics). Random,
+  /// so resetting it instantly cuts off every old copy of the link.
+  calendarFeedToken String? @unique
+  /// The live spreadsheet feed (/api/export/live.csv?secret=<token>), same design.
+  sheetFeedToken    String? @unique
+  vacationMessage String?
+
+  services      Service[]
+  workingHours  WorkingHoursRule[]
+  exceptions    ScheduleException[]
+  appointments  Appointment[]
+  waitlist      WaitlistEntry[]
+  offers        SlotOffer[]
+  galleryItems  GalleryItem[]
+  broadcasts    FlashBroadcast[]
+  adminUsers    AdminUser[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdminUser {
+  id           String  @id @default(cuid())
+  barberId     String
+  barber       Barber  @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  email        String  @unique
+  passwordHash String
+  role         String  @default("OWNER") // OWNER | STAFF
+  active       Boolean @default(true)
+
+  devices AdminDevice[]
+
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+/// A phone the barber has enrolled.
+///
+/// The PIN is deliberately NOT a credential on its own. Four digits is 10,000
+/// combinations and six is a million — acceptable for unlocking a device you
+/// are holding, unacceptable as the only thing between the open internet and a
+/// button that cancels a day's bookings.
+///
+/// So enrolment costs a full email + password login, which mints a 256-bit
+/// `deviceSecret` the browser keeps. Unlocking needs BOTH that secret and the
+/// PIN. An attacker without the secret has nothing to brute-force; the PIN's
+/// job is the one it's good at — stopping whoever picks up the unlocked phone
+/// on the shop counter.
+model AdminDevice {
+  id          String    @id @default(cuid())
+  adminUserId String
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  /// Shown in the device list so the barber can revoke the right one.
+  label String
+
+  /// bcrypt. Low entropy, so it must be slow to test.
+  pinHash String
+
+  /// SHA-256 of the device secret. High entropy, so a fast hash is safe here —
+  /// and unlike bcrypt it can be indexed, which is what makes lookup by secret
+  /// a single query instead of a scan over every device.
+  secretHash String @unique
+
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  lastSeenAt     DateTime?
+  revokedAt      DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([adminUserId, revokedAt])
+  @@index([lockedUntil])
+}
+
+model Service {
+  id          String  @id @default(cuid())
+  barberId    String
+  barber      Barber  @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  durationMin Int
+  priceCents  Int
+  currency    String  @default("EUR")
+  // Purely cosmetic front-end hints, kept server-side so the barber can
+  // reorder the menu without a redeploy.
+  accentColor String? @default("#C6A15B")
+  sortOrder   Int     @default(0)
+  active      Boolean @default(true)
+
+  appointments Appointment[]
+  waitlist     WaitlistEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([barberId, active, sortOrder])
+}
+
+// ============================ DYNAMIC SCHEDULE ==============================
+
+/// Recurring weekly template. Times are LOCAL minutes from midnight
+/// (540 = 09:00) and are resolved per-date in the barber's timezone.
+/// Multiple rows per weekday are allowed, which is how a lunch break is
+/// expressed: 09:00-12:30 and 14:00-19:00 rather than one rule with a hole.
+model WorkingHoursRule {
+  id          String  @id @default(cuid())
+  barberId    String
+  barber      Barber  @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  weekday     Int // 1 = Monday ... 7 = Sunday (ISO-8601)
+  startMinute Int
+  endMinute   Int
+  active      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([barberId, weekday, active])
+}
+
+enum ExceptionKind {
+  OPEN // extra availability outside the weekly template
+  BLOCK // break, holiday, personal appointment — always wins over OPEN
+}
+
+/// Absolute, date-specific override. This is what the "open a 2-hour window on
+/// Thursday" and "block 15:00-16:00" admin buttons write.
+model ScheduleException {
+  id       String        @id @default(cuid())
+  barberId String
+  barber   Barber        @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  kind     ExceptionKind
+  startAt  DateTime // UTC
+  endAt    DateTime // UTC
+  note     String?
+
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@index([barberId, startAt, endAt])
+  @@index([barberId, kind])
+}
+
+// ================================ PEOPLE ====================================
+
+model Client {
+  id    String  @id @default(cuid())
+  /// E.164, normalised on write. The natural key — barbershop clients are
+  /// identified by phone, not email.
+  phone String  @unique
+  name  String
+  email String?
+  locale String @default("fr")
+
+  // Explicit consent, stored per channel. Required for WhatsApp/SMS marketing
+  // (Flash Slots) in most jurisdictions; transactional messages are separate.
+  smsOptIn      Boolean @default(true)
+  whatsappOptIn Boolean @default(true)
+  marketingOptIn Boolean @default(false)
+  /// When consent was given — the proof the anti-spam law expects. Cleared on unsubscribe.
+  marketingOptInAt DateTime?
+
+  vip        Boolean @default(false) // manual VIP flag → waitlist priority
+  notes      String? // barber's private notes
+  noShowCount Int    @default(0)
+
+  appointments  Appointment[]
+  waitlistEntries WaitlistEntry[]
+  notifications NotificationLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phone])
+}
+
+// ============================== APPOINTMENTS ================================
+
+enum AppointmentStatus {
+  HELD // temporary hold backing a live waitlist offer (blocks the slot)
+  PENDING // awaiting confirmation, e.g. phone verification (blocks)
+  CONFIRMED // booked (blocks)
+  COMPLETED // terminal
+  CANCELLED // terminal, releases the slot
+  NO_SHOW // terminal
+  OFFER_EXPIRED // terminal, releases the slot after a waitlist timeout
+}
+
+enum BookingSource {
+  WEB
+  WAITLIST
+  FLASH
+  ADMIN
+}
+
+model Appointment {
+  id        String  @id @default(cuid())
+  barberId  String
+  barber    Barber  @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  clientId  String
+  client    Client  @relation(fields: [clientId], references: [id])
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  /// [startAt, endAt) in UTC. endAt already includes the shop buffer, so the
+  /// exclusion constraint enforces turnaround time for free.
+  startAt DateTime
+  endAt   DateTime
+
+  status AppointmentStatus @default(CONFIRMED)
+  source BookingSource     @default(WEB)
+
+  /// Set only while status = HELD. The wall clock for the 15-minute window
+  /// lives HERE, in the database — never in a setTimeout.
+  holdExpiresAt DateTime?
+
+  /// Unguessable token for the client's "manage my booking" link.
+  manageToken String  @unique
+  clientNote  String?
+  adminNote   String?
+
+  cancelledAt     DateTime?
+  cancelledBy     String? // CLIENT | ADMIN | SYSTEM
+  reminder24SentAt DateTime?
+  reminder2SentAt  DateTime?
+
+  offer SlotOffer?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([barberId, startAt])
+  @@index([barberId, status, startAt])
+  @@index([status, holdExpiresAt]) // sweeper: find stale holds fast
+  @@index([clientId, startAt])
+}
+
+// =========================== SMART VIP WAITLIST =============================
+
+enum WaitlistStatus {
+  ACTIVE // in the queue, offerable
+  OFFERED // currently holding a live offer
+  CONVERTED // terminal — turned into a confirmed appointment
+  EXPIRED // terminal — window passed or too many misses
+  CANCELLED // terminal — client left the queue
+}
+
+enum TimePreference {
+  ANY
+  MORNING // < 12:00 local
+  AFTERNOON // 12:00-17:00 local
+  EVENING // >= 17:00 local
+}
+
+model WaitlistEntry {
+  id        String  @id @default(cuid())
+  barberId  String
+  barber    Barber  @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  clientId  String
+  client    Client  @relation(fields: [clientId], references: [id])
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  // --- What the client will accept ---
+  earliestDate DateTime // UTC instant; local date floor
+  latestDate   DateTime
+  /// Bitmask of acceptable ISO weekdays: bit 0 = Monday … bit 6 = Sunday.
+  /// 127 = any day. Compact, and trivially filterable in JS.
+  weekdayMask  Int            @default(127)
+  timePref     TimePreference @default(ANY)
+
+  status WaitlistStatus @default(ACTIVE)
+  /// Higher wins. VIPs and admin promotions sit above FIFO; ties break on
+  /// createdAt ASC so the queue stays honest.
+  priority Int @default(0)
+
+  missedOffers Int       @default(0)
+  lastOfferedAt DateTime?
+  manageToken  String    @unique
+
+  offers SlotOffer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // The exact index the candidate picker uses.
+  @@index([barberId, status, priority, createdAt])
+  @@index([barberId, status, earliestDate, latestDate])
+  @@index([clientId, status])
+}
+
+enum OfferStatus {
+  SENT // live, ticking
+  CONFIRMED // terminal — client claimed it
+  DECLINED // terminal — client said no, cascade immediately
+  EXPIRED // terminal — 15 minutes elapsed, cascade
+  SUPERSEDED // terminal — slot disappeared (admin blocked it, etc.)
+}
+
+/// One row per offer attempt. Doubles as the per-slot ledger: the candidate
+/// picker excludes anyone who already has a row for this exact slot, which is
+/// what bounds the cascade recursion.
+model SlotOffer {
+  id              String        @id @default(cuid())
+  barberId        String
+  barber          Barber        @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  waitlistEntryId String
+  waitlistEntry   WaitlistEntry @relation(fields: [waitlistEntryId], references: [id], onDelete: Cascade)
+
+  /// The HELD appointment reserving the slot for the duration of this offer.
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  slotStartAt DateTime
+  slotEndAt   DateTime
+
+  status    OfferStatus @default(SENT)
+  /// Server-authoritative deadline. The UI countdown is derived from this;
+  /// it is never trusted as input.
+  expiresAt DateTime
+  /// Position in the cascade for this slot: 1 = first person contacted.
+  attemptNumber Int @default(1)
+
+  /// Public token used in the confirm link, e.g. https://shop.com/o/<token>
+  token       String    @unique
+  respondedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, expiresAt]) // sweeper: find timed-out offers fast
+  @@index([barberId, slotStartAt]) // per-slot ledger lookup
+  @@index([waitlistEntryId, status])
+}
+
+// ============================== FLASH SLOTS =================================
+
+model FlashBroadcast {
+  id       String @id @default(cuid())
+  barberId String
+  barber   Barber @relation(fields: [barberId], references: [id], onDelete: Cascade)
+
+  slotStartAt DateTime
+  slotEndAt   DateTime
+  message     String?
+
+  recipientCount Int     @default(0)
+  bookedById     String?
+  bookedAt       DateTime?
+
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@index([barberId, createdAt])
+}
+
+// ================================ GALLERY ===================================
+
+model GalleryItem {
+  id       String @id @default(cuid())
+  barberId String
+  barber   Barber @relation(fields: [barberId], references: [id], onDelete: Cascade)
+
+  beforeUrl String
+  afterUrl  String
+  // Low-quality placeholders so the slider never flashes white on load.
+  beforeBlurhash String?
+  afterBlurhash  String?
+
+  caption   String?
+  tags      String[] @default([])
+  sortOrder Int      @default(0)
+  published Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([barberId, published, sortOrder])
+}
+
+// =========================== NOTIFICATION OUTBOX ============================
+
+enum NotificationChannel {
+  SMS
+  WHATSAPP
+  EMAIL
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED // no consent / no address on file
+}
+
+/// Transactional outbox. Rows are written in the SAME transaction as the state
+/// change that caused them; a dispatcher drains them with retries. This is what
+/// prevents "we told a client they had a slot" after a rollback, and "the offer
+/// expired in silence" after a crash. See docs/ARCHITECTURE.md §8.
+model NotificationLog {
+  id       String  @id @default(cuid())
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  channel  NotificationChannel
+  template String // WAITLIST_OFFER | BOOKING_CONFIRMED | REMINDER_24H | FLASH_SLOT | ...
+  /// Rendering variables + routing metadata (to, locale, offerToken, ...).
+  payload  Json
+
+  status       NotificationStatus @default(QUEUED)
+  attempts     Int                @default(0)
+  nextAttemptAt DateTime          @default(now())
+  providerMessageId String?
+  error        String?
+  sentAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, nextAttemptAt]) // dispatcher drain query
+  @@index([clientId, createdAt])
+}

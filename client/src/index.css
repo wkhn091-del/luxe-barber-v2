@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Ploni is licensed from Fontef — drop the woff2 files into /public/fonts and
+   these rules pick them up. Until then the stack falls through to Assistant,
+   which is metrically close enough that the swap does not reflow. */
+@font-face { font-family:'Ploni'; src:url('/fonts/ploni-light.woff2') format('woff2'); font-weight:300; font-display:swap; }
+@font-face { font-family:'Ploni'; src:url('/fonts/ploni-regular.woff2') format('woff2'); font-weight:400; font-display:swap; }
+@font-face { font-family:'Ploni'; src:url('/fonts/ploni-bold.woff2') format('woff2'); font-weight:600; font-display:swap; }
+
+@layer base {
+  :root {
+    /* Dark native scrollbars, form controls and date pickers. */
+    color-scheme: dark;
+
+    /* The palette as variables, for inline styles and anything outside
+       Tailwind. tailwind.config.js is the source; keep these in step. The WebGL
+       scene paints its background in the same onyx (HeroScene.jsx). */
+    --onyx: #0b1110;
+    --charcoal: #131a19;
+    --graphite: #1b2422;
+    --line: #323d3a;
+    --ivory: #f2ece1;
+    --champagne: #d0bf98;
+    --gold: #c8a052;
+    --gold-lit: #e6c57f;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+    /* Paints the overscroll and the frame before React mounts, so the first
+       thing anyone sees is the dark room — not a white flash. */
+    background-color: theme('colors.onyx');
+  }
+
+  body {
+    @apply bg-cream text-espresso font-sans;
+    font-weight: 400;
+    /* Light text on a dark ground renders heavier than its weight on macOS and
+       iOS. Greyscale smoothing brings Assistant 400 back to the weight it was
+       drawn at, instead of the swollen look reversed-out type usually gets. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+  }
+
+  .figures { font-family: theme('fontFamily.figure'); font-variant-numeric: tabular-nums; font-weight: 500; }
+
+  :focus-visible { outline: 2px solid theme('colors.gold.lit'); outline-offset: 3px; }
+  ::selection { background: theme('colors.gold.DEFAULT'); color: theme('colors.onyx'); }
+
+  /* Browser autofill paints inputs pale yellow or blue — a lit rectangle in
+     the middle of a dark form, on exactly the fields (name, phone, email) the
+     booking sheet asks for. Hold them at the surface colour instead. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill {
+    -webkit-text-fill-color: theme('colors.ivory');
+    caret-color: theme('colors.ivory');
+    -webkit-box-shadow: 0 0 0 1000px theme('colors.charcoal') inset;
+    transition: background-color 9999s ease-out 0s;
+  }
+
+  /* Installed on iOS with a black-translucent status bar, the page is drawn
+     under the clock. Normal-flow pages step down by the inset here; fixed bars
+     opt in with .pt-safe. The inset is zero in a browser tab, so this changes
+     nothing outside the installed app. */
+  @media (display-mode: standalone) {
+    body { padding-top: env(safe-area-inset-top, 0px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /*
+    DARK GLASSMORPHISM.
+    Over a bright scene frosting fails by going grey. Over a dark one it fails
+    by vanishing — a translucent black rectangle on a black page. Three things
+    stop that:
+
+      1. a SMOKED body rather than black-at-40%: a charcoal gradient that is
+         lighter toward the lit corner, so the panel has a surface to it;
+      2. blur with only a little saturation — enough for the gold and the pole's
+         red to glow through as colour, not so much that they bloom;
+      3. a GILDED EDGE. The 1px border is a gradient, bright gold at the top
+         right — the leading edge in RTL, and where the 3D key light sits —
+         fading to almost nothing. It is the specular line a real bevel
+         catches, and most of what makes the panel read as an object.
+
+    The edge is drawn by a masked ::before rather than a border-box background,
+    so it stays a line: a gradient behind a translucent body would tint the
+    whole panel gold.
+  */
+  .glass {
+    position: relative;
+    background: linear-gradient(205deg, rgba(31, 41, 38, 0.78) 0%, rgba(13, 19, 18, 0.66) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(24px) saturate(130%);
+    -webkit-backdrop-filter: blur(24px) saturate(130%);
+    @apply rounded-glass shadow-card;
+  }
+  .glass::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(205deg, rgba(230, 197, 127, 0.55) 0%, rgba(230, 197, 127, 0.1) 34%, rgba(255, 255, 255, 0.04) 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Opaque variant for anything holding a lot of text. Frosted glass under a
+     paragraph of Hebrew is genuinely harder to read, and legibility beats the
+     effect every time. */
+  .card {
+    background: theme('colors.charcoal');
+    border: 1px solid theme('colors.line');
+    @apply rounded-glass shadow-card;
+  }
+}
+
+@layer utilities {
+  /*
+    THE RULE THAT MAKES THE TWO LAYERS COEXIST.
+    The scroll layer is transparent to the pointer so mouse movement reaches
+    the canvas; only controls opt back in. Drop it and the overlay swallows
+    every pointer event, the 3D stops following the cursor, and nothing in the
+    console tells you why.
+  */
+  .pass-through { pointer-events: none; }
+  .catch { pointer-events: auto; }
+
+  .pb-safe { padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
+  .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+  .text-balance { text-wrap: balance; }
+  .he-body { text-wrap: pretty; hyphens: none; }
+
+  /* Film grain. Smooth dark gradients band on OLED phones and cheap panels; a
+     whisper of noise dithers the banding away and gives the black a texture,
+     like a print rather than a screen. */
+  .grain::after {
+    content:''; position:fixed; inset:0; z-index:60; pointer-events:none;
+    opacity:.55; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E");
+  }
+}

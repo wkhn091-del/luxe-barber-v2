@@ -1,0 +1,99 @@
+<!doctype html>
+<!--
+  dir and lang on the ROOT element, not a wrapper div. The bidi algorithm, form
+  controls, the scrollbar side and every dir="auto" descendant all key off this.
+  Setting it lower leaves the scrollbar on the wrong side and breaks caret
+  movement in inputs — both instantly recognisable as a bolted-on translation.
+-->
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover lets the dark room run under the notch and the home
+         indicator; the layout keeps content clear with env(safe-area-inset-*). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>לוקסי · מספרה בתיאום מראש</title>
+    <meta
+      name="description"
+      content="כיסא אחד, ספר אחד, בתיאום מראש בלבד. אם השבוע מלא — הצטרפו לרשימת ההמתנה ונעדכן אתכם ברגע שמתפנה מקום."
+    />
+
+    <!-- The room's colour on the Android status bar and Safari's toolbar, and
+         dark native controls before a byte of CSS has arrived. -->
+    <!-- Link previews (WhatsApp, Facebook, iMessage): the Open Graph tags are
+         injected at build time by the openGraph plugin in vite.config.js. -->
+    <meta name="theme-color" content="#0B1110" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- Installed app. The manifest link itself is injected at build time by
+         vite-plugin-pwa — see vite.config.js. -->
+    <meta name="application-name" content="לוקסי" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="לוקסי" />
+    <!-- black-translucent: iOS draws the page UNDER the status bar, so the dark
+         room reaches the top edge instead of stopping at a black band. The
+         layout steps clear of the clock with env(safe-area-inset-top) —
+         see .pt-safe and the standalone rule in index.css. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- Prices, times and dates are not phone numbers. Real ones are tel: links. -->
+    <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
+
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <!-- iOS launch screens. Without one, an installed web app opens on a WHITE
+         screen before the first paint — a flash of light in a dark app. One
+         image per screen size; iOS downloads only the one that matches. -->
+    <!-- iPhone 16/17 Pro Max -->
+    <link rel="apple-touch-startup-image" href="/splash/iphone-1320x2868.png"
+          media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone Air -->
+    <link rel="apple-touch-startup-image" href="/splash/iphone-1260x2736.png"
+          media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone 16/17 Pro, 17 -->
+    <link rel="apple-touch-startup-image" href="/splash/iphone-1206x2622.png"
+          media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone 14 Pro Max, 15 Plus/Pro Max, 16 Plus -->
+    <link rel="apple-touch-startup-image" href="/splash/iphone-1290x2796.png"
+          media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone 14 Pro, 15, 15 Pro, 16 -->
+    <link rel="apple-touch-startup-image" href="/splash/iphone-1179x2556.png"
+          media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone 12/13 Pro Max, 14 Plus -->
+    <link rel="apple-touch-startup-image" href="/splash/iphone-1284x2778.png"
+          media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone 12, 13, 14, 16e -->
+    <link rel="apple-touch-startup-image" href="/splash/iphone-1170x2532.png"
+          media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone X, XS, 11 Pro, 12/13 mini -->
+    <link rel="apple-touch-startup-image" href="/splash/iphone-1125x2436.png"
+          media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone XS Max, 11 Pro Max -->
+    <link rel="apple-touch-startup-image" href="/splash/iphone-1242x2688.png"
+          media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone XR, 11 -->
+    <link rel="apple-touch-startup-image" href="/splash/iphone-828x1792.png"
+          media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <!-- iPhone 6/7/8 Plus -->
+    <link rel="apple-touch-startup-image" href="/splash/iphone-1242x2208.png"
+          media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone 6/7/8, SE 2/3 -->
+    <link rel="apple-touch-startup-image" href="/splash/iphone-750x1334.png"
+          media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Assistant carries the Hebrew; Inter is loaded for figures only. Both
+         preconnected so the type downloads in parallel with the JS bundle
+         rather than queueing behind it. -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600&family=Inter:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

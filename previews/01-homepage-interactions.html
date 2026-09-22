@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Luxe Barber — interaction preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500;6..96,600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Dark by intent — this is a barbershop at night, not a theme preference.
+   body carries an explicit background so it never inherits a light viewer. */
+:root{
+  --ink:#08080A; --plate:#131317; --well:#0D0D10;
+  --brass:#B98B3E; --brass-lit:#D6A855; --brass-dim:#6E5426;
+  --champagne:#E9DCC0; --bone:#F2EFE9; --ash:#8A8A92; --smoke:#4A4A52;
+  --signal:#E0533D;
+  --lux:cubic-bezier(.16,1,.3,1);
+  --display:"Bodoni Moda",Didot,Georgia,serif;
+  --sans:Inter,system-ui,-apple-system,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-tap-highlight-color:transparent;scroll-behavior:smooth}
+body{
+  background:var(--ink); color:var(--bone); font-family:var(--sans);
+  font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased;
+  overflow-x:hidden; line-height:1.6;
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+:focus-visible{outline:1px solid var(--brass);outline-offset:3px}
+::selection{background:var(--brass);color:var(--ink)}
+
+/* Film grain: near-black gradients band badly on OLED; this dithers it away. */
+body::after{
+  content:'';position:fixed;inset:0;z-index:60;pointer-events:none;
+  opacity:.035;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.wrap{max-width:1100px;margin:0 auto;padding:0 20px}
+@media(min-width:640px){.wrap{padding:0 32px}}
+
+.display{font-family:var(--display);font-variation-settings:'opsz' 72;font-weight:500}
+.d1{font-size:clamp(2.75rem,11vw,5.5rem);line-height:.94;letter-spacing:-.025em}
+.d2{font-size:clamp(2rem,7vw,3.5rem);line-height:1.02;letter-spacing:-.02em}
+.d3{font-size:clamp(1.5rem,4.5vw,2.25rem);line-height:1.12;letter-spacing:-.015em}
+.note{font-size:.8125rem;line-height:1.25rem;color:var(--ash)}
+.micro{font-size:.6875rem;letter-spacing:.04em;color:var(--ash)}
+.lead{font-size:1.125rem;line-height:1.65;color:var(--ash)}
+
+/* ---- nav ---- */
+nav{position:fixed;inset:0 0 auto 0;z-index:50;border-bottom:1px solid transparent;transition:background-color .6s var(--lux),border-color .6s var(--lux)}
+nav.lifted{background:rgba(8,8,10,.8);backdrop-filter:blur(12px);border-bottom-color:rgba(255,255,255,.06)}
+nav .row{display:flex;align-items:center;justify-content:space-between;padding:16px 0}
+nav a{color:var(--ash);text-decoration:none;font-size:.8125rem;transition:color .4s var(--lux)}
+nav a:hover{color:var(--bone)}
+nav .mark{font-family:var(--display);font-size:1.125rem;color:var(--bone);letter-spacing:-.01em}
+
+/* ---- hero ---- */
+.hero{position:relative;min-height:100svh;display:flex;align-items:center;overflow:hidden}
+#pole{position:absolute;inset:0 -18% 0 auto;width:92%;opacity:.4;pointer-events:none}
+#pole canvas{display:block;width:100%;height:100%}
+@media(min-width:640px){#pole{right:-6%;width:52%;opacity:1}}
+@media(min-width:1024px){#pole{right:0;width:46%}}
+.hero h1{max-width:13ch;position:relative}
+.rule{height:1px;width:100%;background:linear-gradient(90deg,rgba(110,84,38,.6),rgba(110,84,38,.2),transparent)}
+
+@keyframes rise{from{opacity:0;transform:translate3d(0,1.1em,0)}to{opacity:1;transform:none}}
+.rise{animation:rise .9s var(--lux) both}
+
+.btn{display:inline-block;border:0;cursor:pointer;font-family:var(--sans);font-size:1rem;font-weight:500;
+  border-radius:999px;background:var(--brass);color:var(--ink);padding:14px 28px;
+  transition:background-color .4s var(--lux),transform .4s var(--lux)}
+.btn:hover{background:var(--brass-lit)}
+.btn:active{transform:scale(.985)}
+.btn[disabled]{opacity:.6;cursor:default}
+.btn-ghost{background:none;border:1px solid rgba(185,139,62,.5);color:var(--brass);padding:10px 22px;font-size:.8125rem}
+.btn-ghost:hover{border-color:var(--brass);color:var(--brass-lit);background:none}
+
+section.band{padding:96px 0}
+@media(min-width:640px){section.band{padding:128px 0}}
+
+/* ---- before/after ---- */
+.ba{position:relative;width:100%;aspect-ratio:4/5;overflow:hidden;border-radius:2px;
+  border:1px solid rgba(255,255,255,.07);background:var(--well);
+  user-select:none;-webkit-user-select:none;touch-action:pan-y;cursor:grab}
+.ba.dragging{cursor:grabbing}
+@media(min-width:640px){.ba{aspect-ratio:3/2}}
+.ba .layer{position:absolute;inset:0}
+.ba .layer svg{width:100%;height:100%;display:block}
+/* clip-path is compositor-only: the reveal never triggers layout or paint. */
+.ba .before{clip-path:inset(0 calc(100% - var(--pos)) 0 0)}
+.ba .divider{position:absolute;top:0;bottom:0;width:1px;background:rgba(233,220,192,.8);left:var(--pos);z-index:10;pointer-events:none}
+.ba .divider::before{content:'';position:absolute;top:0;bottom:0;left:-3px;width:7px;background:rgba(233,220,192,.1);filter:blur(2px)}
+.ba .tag{position:absolute;top:16px;z-index:5;pointer-events:none;font-size:.6875rem;letter-spacing:.04em;transition:opacity .4s var(--lux)}
+.ba .tag.b{left:16px;color:rgba(138,138,146,.9)}
+.ba .tag.a{right:16px;color:var(--champagne)}
+.ba .grip{position:absolute;top:50%;left:var(--pos);z-index:20;transform:translate3d(-50%,-50%,0);
+  width:44px;height:44px;border-radius:999px;display:grid;place-items:center;cursor:grab;
+  border:1px solid rgba(185,139,62,.7);background:rgba(8,8,10,.7);backdrop-filter:blur(4px);
+  box-shadow:0 0 0 1px rgba(8,8,10,.6),0 8px 24px -8px rgba(0,0,0,.9);
+  transition:border-color .4s var(--lux)}
+.ba:hover .grip{border-color:var(--brass-lit)}
+@keyframes nudge{0%,100%{transform:translate3d(-50%,-50%,0)}40%{transform:translate3d(calc(-50% - 9px),-50%,0)}70%{transform:translate3d(calc(-50% + 5px),-50%,0)}}
+.grip.hint{animation:nudge 1.6s var(--lux) .9s 2}
+
+/* ---- price list ---- */
+.price{display:flex;align-items:baseline;gap:24px;width:100%;text-align:left;
+  border:0;border-top:1px solid rgba(255,255,255,.07);background:none;color:inherit;
+  padding:24px 0;cursor:pointer;font-family:var(--sans);transition:border-color .4s var(--lux)}
+.price:hover{border-top-color:var(--brass-dim)}
+.price .name{transition:color .4s var(--lux)}
+.price:hover .name{color:var(--champagne)}
+.price .amt{color:var(--brass);font-size:1rem}
+.price .dur{font-size:.6875rem;color:var(--smoke);margin-top:4px}
+
+/* ---- countdown ---- */
+.offer{max-width:420px;margin:0 auto}
+.clock-wrap{position:relative;display:grid;place-items:center;height:208px;width:208px;margin:40px auto 0}
+.clock-wrap svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.clock-ring{transition:stroke-dashoffset .6s linear,stroke .6s var(--lux)}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:.55}}
+.breathe{animation:breathe 1.8s ease-in-out infinite}
+.digits{font-family:var(--display);font-variation-settings:'opsz' 72;font-size:clamp(3.5rem,18vw,6rem);
+  line-height:1;letter-spacing:-.03em;transition:color .6s var(--lux)}
+.digits.critical{color:var(--signal)}
+.kv{display:flex;align-items:baseline;justify-content:space-between;gap:24px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.demo-bar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:28px;
+  padding-top:20px;border-top:1px dashed rgba(255,255,255,.08)}
+.demo-bar button{font-size:.6875rem;letter-spacing:.04em;background:none;border:1px solid rgba(255,255,255,.12);
+  color:var(--ash);padding:7px 14px;border-radius:999px;cursor:pointer;font-family:var(--sans);
+  transition:color .4s var(--lux),border-color .4s var(--lux)}
+.demo-bar button:hover{color:var(--bone);border-color:rgba(255,255,255,.3)}
+footer{border-top:1px solid rgba(255,255,255,.06);padding:56px 0}
+</style>
+</head>
+<body>
+
+<nav id="nav"><div class="wrap row">
+  <span class="mark">Luxe</span>
+  <span style="display:flex;gap:24px;align-items:center">
+    <a href="#work">Work</a><a href="#prices">Prices</a>
+    <a href="#offer" class="btn btn-ghost" style="text-decoration:none">Offer screen</a>
+  </span>
+</div></nav>
+
+<!-- ============================ HERO ============================ -->
+<header class="hero">
+  <div id="pole"><canvas id="pole-canvas"></canvas></div>
+  <div class="wrap" style="width:100%;position:relative">
+    <h1 class="display d1">
+      <span class="rise" style="display:block;animation-delay:120ms">Twelve minutes</span>
+      <span class="rise" style="display:block;animation-delay:260ms">of quiet,</span>
+      <span class="rise" style="display:block;animation-delay:400ms">once a month.</span>
+    </h1>
+    <div class="rise" style="animation-delay:620ms;max-width:26rem;margin-top:40px">
+      <div class="rule"></div>
+      <p class="lead" style="margin-top:20px">
+        One chair, one barber, by appointment. If the week is full, join the queue —
+        we'll message you the moment something opens and hold it for fifteen minutes.
+      </p>
+      <div style="margin-top:32px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        <a href="#offer" class="btn" style="text-decoration:none">Book a chair</a>
+        <a href="#work" style="color:var(--ash);font-size:.8125rem;text-decoration:none">See the work</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ======================= BEFORE / AFTER ======================= -->
+<section class="band" id="work"><div class="wrap" style="max-width:860px">
+  <h2 class="display d2">Drag to see the difference</h2>
+  <div class="ba" id="ba" style="--pos:52%;margin-top:48px">
+
+    <!-- Inline SVG rather than photographs: a published page can't load remote
+         images, and a silhouette makes the shape change legible anyway. -->
+    <div class="layer">
+      <svg viewBox="0 0 600 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <radialGradient id="bgA" cx="62%" cy="35%" r="78%">
+            <stop offset="0%" stop-color="#241b10"/><stop offset="100%" stop-color="#0B0B0E"/>
+          </radialGradient>
+          <linearGradient id="fadeA" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#15131a"/><stop offset="62%" stop-color="#15131a"/>
+            <stop offset="100%" stop-color="#15131a" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <rect width="600" height="420" fill="url(#bgA)"/>
+        <g transform="translate(150,-60) scale(0.62)">
+          <path d="M330 168C390 170 438 215 442 280C446 340 430 380 424 418L424 440C470 470 545 500 580 545L600 620L600 750L0 750L0 640C40 570 140 520 230 480C262 466 288 452 300 436C286 424 262 410 250 396C236 382 224 368 226 352C228 342 214 336 206 326C198 316 212 300 228 288C238 280 232 268 236 256C244 226 268 186 330 168Z" fill="#0E0D11"/>
+          <path d="M236 300C230 190 282 146 342 146C404 146 452 190 446 300Z" fill="url(#fadeA)"/>
+          <!-- crisp line-up at the temple: the whole point of the cut -->
+          <path d="M238 292L268 268" stroke="#E9DCC0" stroke-opacity=".55" stroke-width="2.5" stroke-linecap="round"/>
+        </g>
+        <!-- brass rim light down the profile -->
+        <path d="M296 62C265 70 246 96 242 128" stroke="#B98B3E" stroke-opacity=".5" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <div class="layer before" id="ba-before">
+      <svg viewBox="0 0 600 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs><radialGradient id="bgB" cx="62%" cy="35%" r="78%">
+          <stop offset="0%" stop-color="#141519"/><stop offset="100%" stop-color="#0A0A0C"/>
+        </radialGradient></defs>
+        <rect width="600" height="420" fill="url(#bgB)"/>
+        <g transform="translate(150,-60) scale(0.62)">
+          <path d="M330 168C390 170 438 215 442 280C446 340 430 380 424 418L424 440C470 470 545 500 580 545L600 620L600 750L0 750L0 640C40 570 140 520 230 480C262 466 288 452 300 436C286 424 262 410 250 396C236 382 224 368 226 352C228 342 214 336 206 326C198 316 212 300 228 288C238 280 232 268 236 256C244 226 268 186 330 168Z" fill="#101116"/>
+          <!-- overgrown: mass sits proud of the crown and spills past the nape -->
+          <path d="M226 262C200 150 280 84 360 92C452 100 492 178 480 266C474 320 486 372 492 424C496 452 470 462 462 436C452 404 456 364 448 330C442 300 444 280 440 268C436 214 400 174 344 172C292 170 254 208 250 264Z" fill="#191A20"/>
+          <g stroke="#232430" stroke-width="3" stroke-linecap="round" fill="none">
+            <path d="M262 132C250 112 246 96 252 82"/><path d="M318 106C312 84 316 68 328 58"/>
+            <path d="M386 108C392 86 406 74 420 70"/><path d="M448 152C466 138 482 136 494 142"/>
+            <path d="M478 372C496 384 506 404 504 424"/>
+          </g>
+        </g>
+        <rect width="600" height="420" fill="#08080A" opacity=".25" style="mix-blend-mode:multiply"/>
+      </svg>
+    </div>
+
+    <span class="tag b" id="tag-b">Before</span>
+    <span class="tag a" id="tag-a">After</span>
+    <div class="divider"></div>
+    <button class="grip hint" id="grip" role="slider" aria-label="Reveal the haircut"
+            aria-valuemin="0" aria-valuemax="100" aria-valuenow="52">
+      <svg width="16" height="12" viewBox="0 0 16 12" fill="none" aria-hidden="true">
+        <path d="M5.5 1.5 1.5 6l4 4.5M10.5 1.5 14.5 6l-4 4.5" stroke="#B98B3E" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
+  <p class="note" style="margin-top:16px">Grown-out shag to a skin fade — drag, swipe, or use the arrow keys.</p>
+</div></section>
+
+<!-- ============================ PRICES ============================ -->
+<section class="band" id="prices" style="padding-top:0"><div class="wrap" style="max-width:720px">
+  <h2 class="display d2">What happens in the chair</h2>
+  <div style="margin-top:48px" id="prices-list"></div>
+  <div style="border-top:1px solid rgba(255,255,255,.07)"></div>
+  <p class="note" style="margin-top:32px;color:var(--smoke)">Cash on site. No deposit, no card.</p>
+</div></section>
+
+<!-- ========================= OFFER SCREEN ========================= -->
+<section class="band" id="offer" style="background:var(--well);border-top:1px solid rgba(255,255,255,.06)">
+  <div class="wrap">
+    <div class="offer" id="offer-root"></div>
+    <div class="demo-bar">
+      <button data-jump="900">Reset to 15:00</button>
+      <button data-jump="118">Jump to 1:58</button>
+      <button data-jump="45">Jump to 0:45</button>
+      <button data-jump="4">Watch it expire</button>
+    </div>
+    <p class="note" style="text-align:center;margin-top:14px;color:var(--smoke)">
+      In production these seconds come from the API, not this page.
+    </p>
+  </div>
+</section>
+
+<footer><div class="wrap" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:24px;align-items:flex-end">
+  <div><p class="display d3">Luxe</p><p class="note" style="margin-top:12px;max-width:20rem">12 Rue Sainte-Anne, 75001 Paris</p></div>
+  <div class="note" style="text-align:right"><p>Tuesday to Saturday, 9 until 7</p><p>Cash on site</p></div>
+</div></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+/* ===================================================================
+   1. THE POLE
+   Stripes are a shader, not a texture: nothing to download, crisp at
+   any zoom, and antialiased with fwidth() so the helix never shimmers
+   as it turns — which is what gives cheap barber-pole demos away.
+   =================================================================== */
+(function pole(){
+  const canvas = document.getElementById('pole-canvas');
+  const brass = new THREE.Color(css('--brass'));
+  const champagne = new THREE.Color(css('--champagne'));
+
+  const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true, powerPreference:'high-performance'});
+  // Capping at 2 keeps a phone from rendering 3x the pixels straight into
+  // thermal throttling for no visible gain.
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, 1, .1, 100);
+  camera.position.z = 9;
+  const group = new THREE.Group(); scene.add(group);
+
+  const VERT = `varying vec2 vUv; varying vec3 vN; varying vec3 vV;
+    void main(){ vUv=uv; vec4 wp=modelMatrix*vec4(position,1.);
+      vN=normalize(mat3(modelMatrix)*normal); vV=normalize(cameraPosition-wp.xyz);
+      gl_Position=projectionMatrix*viewMatrix*wp; }`;
+
+  const FRAG = `precision highp float;
+    uniform float uTime,uTwist,uBands; uniform vec3 uDark,uBrass,uChamp;
+    varying vec2 vUv; varying vec3 vN; varying vec3 vV;
+    void main(){
+      // uTwist MUST be an integer: at the cylinder's UV seam uv.x jumps 1->0,
+      // and only an integer shear keeps the phase continuous across it.
+      float phase = vUv.y*uBands - vUv.x*uTwist + uTime;
+      // Triangle wave, not fract() — continuous, so fwidth stays finite and
+      // there's no aliased scar once per revolution.
+      float tri = abs(fract(phase)-.5)*2.;
+      float aa = fwidth(tri)*1.1;
+      float stripe = smoothstep(.42-aa,.42+aa,tri);
+      float hair = smoothstep(.30,.42,tri)*(1.-smoothstep(.42,.56,tri));
+      vec3 col = mix(uDark,uBrass,stripe);
+      col = mix(col,uChamp,hair*.8);
+      // Fresnel rim reads as polished metal under glass with no env map.
+      float f = pow(1.-max(dot(normalize(vN),normalize(vV)),0.),3.);
+      col += uBrass*f*.5;
+      float fade = smoothstep(0.,.05,vUv.y)*(1.-smoothstep(.95,1.,vUv.y));
+      col *= mix(.25,1.,fade);
+      gl_FragColor = vec4(col,1.);
+    }`;
+
+  const poleGeo = new THREE.CylinderGeometry(.62,.62,5.4,96,1,true);
+  const poleMat = new THREE.ShaderMaterial({
+    vertexShader:VERT, fragmentShader:FRAG, extensions:{derivatives:true},
+    uniforms:{ uTime:{value:0}, uTwist:{value:3}, uBands:{value:7.5},
+      uDark:{value:new THREE.Color('#111014')}, uBrass:{value:brass}, uChamp:{value:champagne} }
+  });
+  group.add(new THREE.Mesh(poleGeo, poleMat));
+
+  const glassMat = new THREE.ShaderMaterial({
+    vertexShader:`varying vec3 vN; varying vec3 vV;
+      void main(){ vec4 wp=modelMatrix*vec4(position,1.);
+        vN=normalize(mat3(modelMatrix)*normal); vV=normalize(cameraPosition-wp.xyz);
+        gl_Position=projectionMatrix*viewMatrix*wp; }`,
+    fragmentShader:`precision highp float; uniform vec3 uTint; varying vec3 vN; varying vec3 vV;
+      void main(){ float f=pow(1.-max(dot(normalize(vN),normalize(vV)),0.),2.2);
+        gl_FragColor=vec4(uTint*f, f*.35); }`,
+    uniforms:{uTint:{value:champagne}}, transparent:true,
+    blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide
+  });
+  const glassGeo = new THREE.CylinderGeometry(.71,.71,5.5,64,1,true);
+  group.add(new THREE.Mesh(glassGeo, glassMat));
+
+  const brassMat = new THREE.MeshStandardMaterial({color:brass, metalness:.95, roughness:.28});
+  const capGeo = new THREE.CylinderGeometry(.86,.72,.5,64);
+  const knobGeo = new THREE.SphereGeometry(.3,40,28);
+  const collarGeo = new THREE.TorusGeometry(.76,.045,16,72);
+  [1,-1].forEach(d=>{
+    const cap=new THREE.Mesh(capGeo,brassMat); cap.position.y=d*2.95; if(d<0)cap.rotation.x=Math.PI; group.add(cap);
+    const knob=new THREE.Mesh(knobGeo,brassMat); knob.position.y=d*3.32; group.add(knob);
+    const col=new THREE.Mesh(collarGeo,brassMat); col.position.y=d*2.62; col.rotation.x=Math.PI/2; group.add(col);
+  });
+
+  scene.add(new THREE.AmbientLight(0x14141b,1.4));
+  const key=new THREE.DirectionalLight(0xfff0d4,2.6); key.position.set(4,5,6); scene.add(key);
+  const bounce=new THREE.PointLight(brass,18,16,2); bounce.position.set(-3,-1,3); scene.add(bounce);
+  const rim=new THREE.DirectionalLight(0x7b8bb8,1.6); rim.position.set(-5,2,-5); scene.add(rim);
+  scene.fog=new THREE.Fog(new THREE.Color(css('--ink')),10,18);
+
+  // lerp(a,b,.1) converges twice as fast at 120Hz as at 60Hz, which is why
+  // naive scenes feel different on different devices. This fixes it.
+  const damp=(c,t,s,dt)=>THREE.MathUtils.lerp(c,t,1-Math.pow(1-s,dt*60));
+  const st={scroll:0,px:0,py:0,spin:0,vel:.28};
+  const cur={tiltX:0,tiltZ:0,lift:0,stripe:0};
+  const clock=new THREE.Clock();
+  let raf=null, onScreen=true, visible=!document.hidden;
+
+  function resize(){
+    const w=canvas.clientWidth, h=canvas.clientHeight; if(!w||!h) return;
+    renderer.setSize(w,h,false); camera.aspect=w/h;
+    camera.position.z=THREE.MathUtils.clamp(9+(640-w)*.006,9,13);
+    camera.updateProjectionMatrix();
+  }
+  function frame(){
+    const dt=Math.min(clock.getDelta(),.05), t=clock.getElapsedTime();
+    st.vel=damp(st.vel,.28+st.scroll*1.5,.06,dt);
+    st.spin+=st.vel*dt;
+    cur.stripe+=(.42+st.scroll*.8)*dt;
+    poleMat.uniforms.uTime.value=cur.stripe;
+    cur.tiltX=damp(cur.tiltX,st.py*.16,.05,dt);
+    cur.tiltZ=damp(cur.tiltZ,-st.px*.1,.05,dt);
+    cur.lift=damp(cur.lift,-st.scroll*1.1,.04,dt);
+    group.rotation.set(cur.tiltX, st.spin, cur.tiltZ+Math.sin(t*.3)*.012);
+    group.position.y=cur.lift;
+    renderer.render(scene,camera);
+    raf=requestAnimationFrame(frame);
+  }
+  function sync(){
+    if(REDUCED) return;
+    if(onScreen&&visible){ if(!raf){clock.getDelta();raf=requestAnimationFrame(frame);} }
+    else if(raf){cancelAnimationFrame(raf);raf=null;}
+  }
+
+  resize();
+  new ResizeObserver(resize).observe(canvas);
+  new IntersectionObserver(([e])=>{onScreen=e.isIntersecting;sync();},{threshold:.01}).observe(canvas);
+  document.addEventListener('visibilitychange',()=>{visible=!document.hidden;sync();});
+
+  let ticking=false;
+  addEventListener('scroll',()=>{
+    if(ticking)return; ticking=true;
+    requestAnimationFrame(()=>{
+      const max=document.documentElement.scrollHeight-innerHeight;
+      st.scroll=max>0?Math.min(1,scrollY/max):0;
+      document.getElementById('nav').classList.toggle('lifted',scrollY>24);
+      ticking=false;
+    });
+  },{passive:true});
+
+  if(matchMedia('(pointer:fine)').matches){
+    addEventListener('pointermove',e=>{
+      st.px=(e.clientX/innerWidth)*2-1; st.py=(e.clientY/innerHeight)*2-1;
+    },{passive:true});
+  }
+
+  if(REDUCED){ poleMat.uniforms.uTime.value=.2; group.rotation.y=.6; renderer.render(scene,camera); }
+  else sync();
+})();
+
+/* ===================================================================
+   2. BEFORE / AFTER
+   The position is written straight to a CSS variable inside rAF — a
+   120Hz drag would otherwise queue 120 renders a second. clip-path
+   keeps the reveal on the compositor.
+   =================================================================== */
+(function slider(){
+  const el=document.getElementById('ba'), grip=document.getElementById('grip');
+  const tagB=document.getElementById('tag-b'), tagA=document.getElementById('tag-a');
+  let pos=52, pending=52, raf=0, dragging=false;
+
+  function commit(){
+    raf=0; pos=pending;
+    el.style.setProperty('--pos',pos+'%');
+    grip.setAttribute('aria-valuenow',Math.round(pos));
+    tagB.style.opacity = pos<18?0:1;
+    tagA.style.opacity = pos>82?0:1;
+  }
+  const set=v=>{ pending=Math.max(0,Math.min(100,v)); if(!raf) raf=requestAnimationFrame(commit); };
+  const fromX=x=>{ const r=el.getBoundingClientRect(); return r.width?((x-r.left)/r.width)*100:null; };
+
+  // Pointer capture keeps the drag tracking after the finger leaves the
+  // image — which is exactly what people do when they fling it to an edge.
+  el.addEventListener('pointerdown',e=>{
+    if(e.button&&e.button!==0)return;
+    el.setPointerCapture(e.pointerId); dragging=true;
+    el.classList.add('dragging'); grip.classList.remove('hint');
+    const v=fromX(e.clientX); if(v!==null)set(v);
+  });
+  el.addEventListener('pointermove',e=>{ if(!dragging)return; const v=fromX(e.clientX); if(v!==null)set(v); });
+  const end=e=>{ if(!dragging)return; el.releasePointerCapture(e.pointerId); dragging=false; el.classList.remove('dragging'); };
+  el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
+
+  grip.addEventListener('keydown',e=>{
+    const step=e.shiftKey?10:2;
+    const moves={ArrowLeft:-step,ArrowRight:step,ArrowDown:-step,ArrowUp:step,Home:-100,End:100};
+    if(!(e.key in moves))return;
+    e.preventDefault();
+    set((e.key==='Home'||e.key==='End'?50:pos)+moves[e.key]);
+  });
+})();
+
+/* ===================================================================
+   3. PRICES — an engraved list, so the numerals stack into a column
+   the eye can scan, the way a price list is painted on a mirror.
+   =================================================================== */
+(function prices(){
+  const data=[
+    ['Signature cut','Consultation, cut, hot towel, styling',45,'€45'],
+    ['Cut and beard','Full service with straight-razor beard work',60,'€65'],
+    ['Beard sculpt','Line-up, shape, hot towel finish',30,'€30'],
+    ['Express fade','Clipper work only, no wash',20,'€25'],
+  ];
+  document.getElementById('prices-list').innerHTML = data.map(([n,d,m,p])=>`
+    <button class="price">
+      <span style="flex:1">
+        <span class="display d3 name">${n}</span>
+        <p class="note" style="margin-top:8px;max-width:28rem">${d}</p>
+      </span>
+      <span style="flex-shrink:0;text-align:right">
+        <span class="amt">${p}</span><div class="dur">${m} min</div>
+      </span>
+    </button>`).join('');
+})();
+
+/* ===================================================================
+   4. THE OFFER COUNTDOWN
+   The deadline is an absolute instant and every tick recomputes from
+   Date.now(), so drift is always zero. Recomputing on visibilitychange
+   is what stops a locked phone showing a stale number on the one
+   screen whose whole job is urgency.
+   =================================================================== */
+(function offer(){
+  const root=document.getElementById('offer-root');
+  const TOTAL=900, R=78, C=2*Math.PI*R;
+  let deadline=Date.now()+TOTAL*1000, total=TOTAL, phase='live', timer=null, buzzed={m:false,s:false};
+
+  function remaining(){ return Math.max(0,Math.round((deadline-Date.now())/1000)); }
+
+  function render(){
+    if(phase==='confirmed'){ root.innerHTML=confirmed(); return; }
+    if(phase==='expired'){ root.innerHTML=message("This one's gone",
+      "The slot moved to the next person on the list. You're still queued — we'll message you the moment another opens."); return; }
+    if(phase==='closed'){ root.innerHTML=message('Passed on',
+      'Thanks for telling us quickly — someone else can take it now. You keep your place in the queue.'); return; }
+
+    const left=remaining(), crit=left>0&&left<=60, urg=left>0&&left<=120;
+    const stroke = crit?'var(--signal)':urg?'var(--brass-lit)':'var(--brass)';
+    const label = Math.floor(left/60)+':'+String(left%60).padStart(2,'0');
+
+    root.innerHTML=`
+      <p class="note">Marc, a chair just opened.</p>
+      <h2 class="display d2" style="margin-top:12px">Thursday 21 May, 15:00</h2>
+      <div class="kv" style="border-top:1px solid rgba(255,255,255,.07);padding-top:16px;margin-top:24px">
+        <span>Signature cut</span><span style="color:var(--brass)">€45</span>
+      </div>
+      <div class="kv" style="margin-top:8px"><span class="note">45 minutes</span><span class="note">Cash on site</span></div>
+
+      <div class="clock-wrap">
+        <svg viewBox="0 0 176 176" aria-hidden="true">
+          <circle cx="88" cy="88" r="${R}" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="1.5"/>
+          <circle class="clock-ring ${crit?'breathe':''}" cx="88" cy="88" r="${R}" fill="none"
+            stroke="${stroke}" stroke-width="1.5" stroke-linecap="round"
+            stroke-dasharray="${C}" stroke-dashoffset="${C*(1-left/total)}"/>
+        </svg>
+        <div style="text-align:center">
+          <div class="digits ${crit?'critical':''}" aria-hidden="true">${label}</div>
+          <p class="sr" aria-live="polite">${Math.floor(left/60)} minutes ${left%60} seconds left to confirm</p>
+        </div>
+      </div>
+
+      <p class="note" style="text-align:center;margin-top:24px">
+        ${crit?'Confirm now or it goes to the next person.':"We're holding it for you until the timer runs out."}
+      </p>
+
+      <button class="btn" id="confirm" style="width:100%;margin-top:28px">Take this slot</button>
+      <button id="decline" style="width:100%;margin-top:12px;background:none;border:0;cursor:pointer;
+        font-family:var(--sans);font-size:.8125rem;color:var(--ash);padding:8px">I can't make this one</button>`;
+
+    root.querySelector('#confirm').onclick=()=>{
+      phase='confirmed'; navigator.vibrate?.([10,40,20]); stop(); render();
+    };
+    // Declining is offered as plainly as confirming: per the backend it costs
+    // no missed-offer penalty and cascades instantly, so an easy "no" is worth
+    // more to the shop than the conversion squeezed out of hiding it.
+    root.querySelector('#decline').onclick=()=>{ phase='closed'; stop(); render(); };
+  }
+
+  const confirmed=()=>`
+    <div style="text-align:center">
+      <svg width="44" height="44" viewBox="0 0 44 44" fill="none" aria-hidden="true">
+        <circle cx="22" cy="22" r="21" stroke="var(--brass)" stroke-width="1"/>
+        <path d="M13 22.5 19.5 29 31 15.5" stroke="var(--brass)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h2 class="display d2" style="margin-top:32px">The chair is yours</h2>
+      <p style="margin-top:16px;color:var(--ash)">Thursday 21 May, 15:00</p>
+      <div style="max-width:20rem;margin:40px auto 0;border-top:1px solid rgba(255,255,255,.07);padding-top:24px;text-align:left">
+        <div class="kv" style="margin-bottom:12px"><span class="note">Signature cut</span><span class="note" style="color:var(--bone)">€45</span></div>
+        <div class="kv" style="margin-bottom:12px"><span class="note">Payment</span><span class="note" style="color:var(--bone)">Cash on site</span></div>
+        <div class="kv"><span class="note">Where</span><span class="note" style="color:var(--bone)">12 Rue Sainte-Anne</span></div>
+      </div>
+      <p class="note" style="margin-top:40px;color:var(--smoke)">A confirmation is on its way to your phone.</p>
+    </div>`;
+
+  const message=(t,b)=>`
+    <div style="text-align:center">
+      <h2 class="display d3">${t}</h2>
+      <p style="margin-top:16px;color:var(--ash)">${b}</p>
+    </div>`;
+
+  function tick(){
+    if(phase!=='live')return;
+    const left=remaining();
+    if(left<=60&&!buzzed.m){buzzed.m=true;navigator.vibrate?.(18);}
+    if(left<=10&&!buzzed.s){buzzed.s=true;navigator.vibrate?.([12,60,12]);}
+    if(left===0){ phase='expired'; stop(); }
+    render();
+  }
+  function stop(){ clearInterval(timer); timer=null; }
+  function start(seconds){
+    stop(); total=seconds; deadline=Date.now()+seconds*1000;
+    phase='live'; buzzed={m:false,s:false};
+    // 250ms, not 1000: the displayed second turns over within a quarter of a
+    // second of the real one, so the number never looks stuck.
+    timer=setInterval(tick,250); render();
+  }
+
+  // A backgrounded tab throttles timers to once a minute or stops them dead.
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) tick(); });
+  addEventListener('focus',()=>tick());
+
+  document.querySelectorAll('.demo-bar button').forEach(b=>{
+    b.onclick=()=>start(Number(b.dataset.jump));
+  });
+
+  start(TOTAL);
+})();
+</script>
+</body>
+</html>
